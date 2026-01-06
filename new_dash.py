@@ -22,65 +22,34 @@ def render_new_dash(df, kpis):
     # =========================
     st.subheader("📈 Top 10 por Dimensão")
 
-    dims = [
-        c for c in df.columns
-        if c not in kpis
-        and df[c].dtype == "object"
-        and c not in ["Date", "Date_norm", "Month", "YearMonth"]
-    ]
-
     dim = st.selectbox(
         "Dimensão",
-        dims,
-        key="top10_dim"
+        [c for c in df.columns if c not in kpis],
+        key="nd_dim"
     )
 
     metric = st.selectbox(
         "Métrica",
         kpis,
-        key="top10_metric"
+        key="nd_metric"
     )
 
-    df_top = df.copy()
-
-    # Garante numérico
-    df_top[metric] = pd.to_numeric(
-        df_top[metric],
-        errors="coerce"
-    ).fillna(0)
-
-    top10 = (
-        df_top
-        .groupby(dim, dropna=False)[metric]
+    top = (
+        df.groupby(dim, dropna=False)[metric]
         .sum()
         .reset_index()
         .sort_values(metric, ascending=False)
         .head(10)
     )
 
-    fig_bar = px.bar(
-        top10,
+    fig_top = px.bar(
+        top,
         x=dim,
         y=metric,
-        text=metric,
-        labels={
-            dim: dim,
-            metric: metric
-        }
+        text_auto=True
     )
 
-    fig_bar.update_traces(
-        texttemplate="%{text:,.0f}",
-        textposition="inside"
-    )
-
-    fig_bar.update_layout(
-        xaxis=dict(
-            categoryorder="total descending"
-        )
-    )
-
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_top, use_container_width=True)
 
     st.markdown("---")
 
