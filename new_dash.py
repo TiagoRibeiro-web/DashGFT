@@ -2,6 +2,7 @@ import streamlit as st
 import plotly.express as px
 from kpi_cards import kpi_card
 
+
 def render_new_dash(df, kpis):
 
     # =========================
@@ -11,7 +12,8 @@ def render_new_dash(df, kpis):
 
     kpi_cols = st.columns(5)
     for i, kpi in enumerate(kpis):
-        value = int(df[kpi].sum())
+        df_kpi = df.copy()
+        value = int(df_kpi[kpi].sum())
         with kpi_cols[i % 5]:
             kpi_card(kpi, f"{value:,}")
 
@@ -34,19 +36,32 @@ def render_new_dash(df, kpis):
         key="nd_metric"
     )
 
+    df_top = df.copy()
+
     top = (
-        df.groupby(dim, dropna=False)[metric]
+        df_top
+        .groupby(dim, dropna=False)[metric]
         .sum()
         .reset_index()
         .sort_values(metric, ascending=False)
         .head(10)
     )
 
+    # FORÇA ORDEM DO EIXO (CLOUD SAFE)
+    order_top = top[dim].astype(str).tolist()
+
     fig_top = px.bar(
         top,
         x=dim,
         y=metric,
         text_auto=True
+    )
+
+    fig_top.update_layout(
+        xaxis=dict(
+            categoryorder="array",
+            categoryarray=order_top
+        )
     )
 
     st.plotly_chart(fig_top, use_container_width=True)
@@ -58,8 +73,10 @@ def render_new_dash(df, kpis):
     # =========================
     st.subheader("📊 Comparativo Month vs Month")
 
+    df_cmp = df.copy()
+
     months = (
-        df["Month"]
+        df_cmp["Month"]
         .dropna()
         .astype(str)
         .unique()
@@ -91,8 +108,8 @@ def render_new_dash(df, kpis):
             key="cmp_month_b"
         )
 
-    val_a = df[df["Month"].astype(str) == month_a][cmp_metric].sum()
-    val_b = df[df["Month"].astype(str) == month_b][cmp_metric].sum()
+    val_a = df_cmp[df_cmp["Month"].astype(str) == month_a][cmp_metric].sum()
+    val_b = df_cmp[df_cmp["Month"].astype(str) == month_b][cmp_metric].sum()
 
     delta = ((val_b - val_a) / val_a * 100) if val_a else 0
 
@@ -115,18 +132,31 @@ def render_new_dash(df, kpis):
         key="time_metric"
     )
 
+    df_time = df.copy()
+
     trend = (
-        df.groupby("Month", dropna=False)[time_metric]
+        df_time
+        .groupby("Month", dropna=False)[time_metric]
         .sum()
         .reset_index()
         .sort_values("Month")
     )
+
+    # FORÇA ORDEM DO EIXO (CLOUD SAFE)
+    order_time = trend["Month"].astype(str).tolist()
 
     fig_line = px.line(
         trend,
         x="Month",
         y=time_metric,
         markers=True
+    )
+
+    fig_line.update_layout(
+        xaxis=dict(
+            categoryorder="array",
+            categoryarray=order_time
+        )
     )
 
     st.plotly_chart(fig_line, use_container_width=True)
