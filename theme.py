@@ -1,0 +1,5 @@
+primaryColor = "#0D3B66"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F7F7F7"
+textColor = "#000000"
+font = "sans serif"
