@@ -138,12 +138,12 @@ export_full_excel(df)
 # =========================
 # Abas do dashboard
 # =========================
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
     "📊 NEW DASH",
     "📝 POSTS",
-    "🏷️ TAGS",
-    "📘 DIN",
-    "📺 TV-DIN"
+    "🏷️ TAGS"
+    #"📘 DIN",
+    #"📺 TV-DIN"
 ])
 
 with tab1:
@@ -155,11 +155,11 @@ with tab2:
 with tab3:
     render_tags(df.copy(), KPIS)
 
-with tab4:
-    render_din(df.copy())
+# with tab4:
+#     render_din(df.copy())
 
-with tab5:
-    render_tv_din(df.copy())    
+# with tab5:
+#     render_tv_din(df.copy())    
 
 # =========================
 # Logout
