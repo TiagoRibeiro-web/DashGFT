@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 
-
 def render_tags(df, kpis):
 
     st.subheader("🏷️ Performance por Tag")
@@ -26,6 +25,7 @@ def render_tags(df, kpis):
         "Score": "sum"
     }
 
+    # Garante que só usamos colunas existentes
     required_cols = {
         col: agg for col, agg in required_cols.items() if col in df.columns
     }
@@ -41,19 +41,20 @@ def render_tags(df, kpis):
 
     # =========================
     # CTR = Consumptions / Impressions
-    # (AJUSTE: nunca retorna None)
+    # (igual ao Excel / DIN)
     # =========================
     agg["CTR"] = agg.apply(
         lambda r: (r[consumption_col] / r["Impressions"])
-        if r["Impressions"] > 0 else 0,
+        if r["Impressions"] > 0 else None,
         axis=1
     )
 
     # =========================
-    # AJUSTE: manter CTR numérico
-    # (formatação fica no column_config)
+    # FORMATAÇÃO
     # =========================
-    agg["CTR_pct"] = agg["CTR"].fillna(0)
+    agg["CTR %"] = agg["CTR"].apply(
+        lambda x: f"{x*100:.2f}%" if pd.notna(x) else ""
+    )
 
     # =========================
     # CONTROLES
@@ -77,7 +78,7 @@ def render_tags(df, kpis):
             "Reach",
             "Impressions",
             consumption_col,
-            "CTR_pct",
+            "CTR %",
             "Score"
         ]],
         use_container_width=True,
@@ -87,7 +88,7 @@ def render_tags(df, kpis):
             consumption_col: st.column_config.NumberColumn(
                 "Consumptions", format="%,d"
             ),
-            "CTR_pct": st.column_config.ProgressColumn(
+            "CTR %": st.column_config.ProgressColumn(
                 "CTR",
                 min_value=0,
                 max_value=0.5,   # 50% visual
