@@ -1,51 +1,59 @@
-# auth.py - ATUALIZADO para usar secrets.toml
 import streamlit as st
+from PIL import Image
 import bcrypt
 
-def verify_login(username, password):
-    """Verifica se usuário e senha são válidos usando secrets.toml"""
-    try:
-        # Verifica se o usuário existe no secrets
-        if "auth" in st.secrets and username in st.secrets["auth"]:
-            stored_hash = st.secrets["auth"][username]
-            # Verifica o hash bcrypt
-            return bcrypt.checkpw(password.encode(), stored_hash.encode())
-    except Exception as e:
-        st.error(f"Erro na verificação: {e}")
-    return False
-
 def login_screen():
-    """Tela de login usando secrets.toml"""
-    
-    st.markdown(
-        """
-        <style>
-        .login-container {
-            max-width: 400px;
-            margin: 150px auto;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            background-color: white;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-    
-    with st.container():
-        st.markdown('<div class="login-container">', unsafe_allow_html=True)
-        st.title("🔐 GFT Dashboard")
-        
+
+    # =========================
+    # ESTILO
+    # =========================
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"] { display: none; }
+    .stApp {
+        background: linear-gradient(135deg, #0D3B66, #145DA0);
+    }
+    h1, h2, h3, label {
+        color: white !important;
+    }
+    div.stButton > button {
+        background: linear-gradient(135deg, #145DA0, #0D3B66);
+        color: white;
+        border-radius: 10px;
+        height: 45px;
+        font-weight: 600;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    _, center, _ = st.columns([1, 2, 1])
+
+    with center:
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+
+        logo = Image.open("assets/gft_logo.jpg")
+        st.image(logo, width=220)
+
+        st.markdown("### Social Media Dashboard")
+
         username = st.text_input("Usuário")
         password = st.text_input("Senha", type="password")
-        
-        if st.button("Entrar", use_container_width=True):
-            if verify_login(username, password):
+
+        if st.button("Entrar"):
+
+            try:
+                secret_user = st.secrets["auth"]["username"]
+                secret_hash = st.secrets["auth"]["password_hash"]
+            except KeyError:
+                st.error("Configuração de autenticação não encontrada.")
+                return
+
+            if username == secret_user and bcrypt.checkpw(
+                password.encode("utf-8"),
+                secret_hash.encode("utf-8")
+            ):
                 st.session_state.auth = True
-                st.session_state.current_user = username
+                st.session_state.user = username
                 st.rerun()
             else:
-                st.error("❌ Usuário ou senha incorretos!")
-        
-        st.markdown('</div>', unsafe_allow_html=True)
+                st.error("Usuário ou senha inválidos")
