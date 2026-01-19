@@ -6,7 +6,6 @@ import tempfile
 import os
 from datetime import datetime
 from PIL import Image
-import bcrypt  # ADICIONADO PARA AUTENTICAÇÃO
 from din import render_din
 from tv_din import render_tv_din
 
@@ -23,7 +22,7 @@ from exports import export_multi_excel, export_full_excel
 from topvoices import render_top_voices_dashboard
 
 # =========================
-# CONFIGURAÇÃO DA PÁGINA
+# Configuração da página
 # =========================
 st.set_page_config(
     page_title="GFT Technology | Social Dashboard",
@@ -32,112 +31,85 @@ st.set_page_config(
 )
 
 # =========================
-# SISTEMA DE AUTENTICAÇÃO - ADICIONADO
+# Funções auxiliares
 # =========================
-def check_password():
-    """Verifica login para múltiplos usuários."""
-    
-    def verify_login(username, password):
-        """Verifica se usuário e senha são válidos."""
-        # Verifica se o usuário existe no secrets
-        if "auth" in st.secrets and username in st.secrets["auth"]:
-            stored_hash = st.secrets["auth"][username]
-            # Verifica o hash bcrypt
-            try:
-                return bcrypt.checkpw(password.encode(), stored_hash.encode())
-            except Exception as e:
-                st.error(f"Erro na verificação: {e}")
-                return False
-        return False
-    
-    def password_entered():
-        """Processa o login."""
-        if "username" in st.session_state and "password" in st.session_state:
-            username = st.session_state["username"]
-            password = st.session_state["password"]
+def export_all_data(df_main_filtered, df_top_voices):
+    """
+    Exporta todos os dados do sistema (principal + top voices).
+    """
+    try:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        zip_filename = f"gft_dashboard_completo_{timestamp}.zip"
+        
+        # Criar arquivo temporário ZIP
+        with tempfile.TemporaryDirectory() as tmpdir:
+            zip_path = os.path.join(tmpdir, zip_filename)
             
-            if verify_login(username, password):
-                st.session_state["authenticated"] = True
-                st.session_state["current_user"] = username
-                # Limpa dados sensíveis
-                if "password" in st.session_state:
-                    del st.session_state["password"]
-                if "username" in st.session_state:
-                    del st.session_state["username"]
-                st.rerun()
-            else:
-                st.session_state["authenticated"] = False
-                st.session_state["login_error"] = True
-    
-    # Se já estiver autenticado, permite acesso
-    if st.session_state.get("authenticated", False):
-        return True
-    
-    # Formulário de login (centralizado)
-    st.markdown(
-        """
-        <style>
-        .login-container {
-            max-width: 400px;
-            margin: 150px auto;
-            padding: 40px;
-            border: 1px solid #ddd;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            background-color: white;
-        }
-        .login-title {
-            text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-        }
-        .stButton > button {
-            width: 100%;
-            background-color: #FF4B4B;
-            color: white;
-            font-weight: bold;
-        }
-        .stButton > button:hover {
-            background-color: #FF3333;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
-    
-    with st.container():
-        st.markdown('<div class="login-container">', unsafe_allow_html=True)
-        st.markdown('<h2 class="login-title">🔐 GFT Dashboard</h2>', unsafe_allow_html=True)
-        st.markdown('<p style="text-align: center; color: #666; margin-bottom: 30px;">Acesso restrito</p>', unsafe_allow_html=True)
+            with zipfile.ZipFile(zip_path, 'w') as zipf:
+                # 1. Adicionar dados principais
+                if not df_main_filtered.empty:
+                    main_csv_path = os.path.join(tmpdir, 'dados_principais.csv')
+                    df_main_filtered.to_csv(main_csv_path, index=False, encoding='utf-8-sig')
+                    zipf.write(main_csv_path, 'dados_principais.csv')
+                
+                # 2. Adicionar dados Top Voices completos
+                if not df_top_voices.empty:
+                    tv_csv_path = os.path.join(tmpdir, 'top_voices_completo.csv')
+                    df_top_voices.to_csv(tv_csv_path, index=False, encoding='utf-8-sig')
+                    zipf.write(tv_csv_path, 'top_voices_completo.csv')
+                
+                # 3. Adicionar relatório resumido
+                summary_path = os.path.join(tmpdir, 'resumo.txt')
+                with open(summary_path, 'w', encoding='utf-8') as f:
+                    f.write(f"Relatório GFT Dashboard - {timestamp}\n")
+                    f.write("="*50 + "\n\n")
+                    f.write(f"Dados principais: {len(df_main_filtered)} registros\n")
+                    f.write(f"Top Voices: {len(df_top_voices)} registros\n")
+                    
+                    # Estatísticas principais
+                    if not df_main_filtered.empty:
+                        if 'Reach' in df_main_filtered.columns:
+                            total_reach = df_main_filtered['Reach'].sum()
+                            f.write(f"Alcance total principal: {int(total_reach):,}\n")
+                    
+                    if not df_top_voices.empty:
+                        if 'Reach' in df_top_voices.columns:
+                            total_reach_tv = df_top_voices['Reach'].sum()
+                            f.write(f"Alcance total Top Voices: {int(total_reach_tv):,}\n")
+                    
+                    f.write(f"\nGerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
+                zipf.write(summary_path, 'resumo.txt')
+            
+            # Ler o arquivo ZIP para download
+            with open(zip_path, 'rb') as f:
+                st.sidebar.download_button(
+                    label="📥 Baixar ZIP completo",
+                    data=f,
+                    file_name=zip_filename,
+                    mime="application/zip",
+                    use_container_width=True
+                )
         
-        # Campos de login
-        username = st.text_input("Usuário", key="username")
-        password = st.text_input("Senha", type="password", key="password")
+        st.sidebar.success(f"✅ ZIP '{zip_filename}' pronto para download!")
         
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("Entrar", use_container_width=True):
-                password_entered()
-        
-        # Mensagem de erro
-        if st.session_state.get("login_error", False):
-            st.error("❌ Usuário ou senha incorretos!")
-            # Remove a mensagem de erro após exibir
-            if "login_error" in st.session_state:
-                del st.session_state["login_error"]
-        
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    return False
+    except Exception as e:
+        st.sidebar.error(f"❌ Erro ao criar export global: {str(e)}")
 
 # =========================
-# VERIFICA AUTENTICAÇÃO
+# Controle de sessão
 # =========================
-if not check_password():
+if "auth" not in st.session_state:
+    st.session_state.auth = False
+
+# =========================
+# Login
+# =========================
+if not st.session_state.auth:
+    login_screen()
     st.stop()
 
 # ======================================================
-# USUÁRIO AUTENTICADO - DAQUI PRA BAIXO SÓ EXECUTA SE LOGADO
+# USUÁRIO AUTENTICADO
 # ======================================================
 
 # =========================
@@ -169,15 +141,12 @@ df_main_filtered = apply_filters(df_main.copy(), FILTERS)
 try:
     logo = Image.open("assets/gft_logo.jpg")
     
-    col_logo, col_title, col_user = st.columns([1, 5, 1])
+    col_logo, col_title = st.columns([1, 6])
     with col_logo:
         st.image(logo, width=120)
     with col_title:
         st.markdown("## Social Media Dashboard")
         st.markdown("Visão consolidada de performance de mídias sociais")
-    with col_user:
-        st.markdown(f"<div style='text-align: right; padding-top: 20px;'><b>👤 {st.session_state['current_user']}</b></div>", 
-                   unsafe_allow_html=True)
     
     st.markdown("---")
 except Exception as e:
@@ -307,6 +276,7 @@ tab1, tab2, tab3, tab6 = st.tabs([
     "📊 NEW DASH",
     "📝 POSTS",
     "🏷️ TAGS",
+    
     "🎤 TOP VOICES"
 ])
 
@@ -330,6 +300,20 @@ with tab3:
     else:
         st.warning("⚠️ Nenhum dado disponível para análise.")
         st.info("Verifique se o arquivo 'banco_de_posts_gft.xlsx' está na pasta correta.")
+
+# with tab4:
+#     if not df_main_filtered.empty:
+#         render_din(df_main_filtered.copy())
+#     else:
+#         st.warning("⚠️ Nenhum dado disponível para análise.")
+#         st.info("Verifique se o arquivo 'banco_de_posts_gft.xlsx' está na pasta correta.")
+
+# with tab5:
+#     if not df_main_filtered.empty:
+#         render_tv_din(df_main_filtered.copy())
+#     else:
+#         st.warning("⚠️ Nenhum dado disponível para análise.")
+#         st.info("Verifique se o arquivo 'banco_de_posts_gft.xlsx' está na pasta correta.")
 
 with tab6:
     # Usar dados específicos do Top Voices
@@ -375,7 +359,7 @@ if not df_main_filtered.empty:
         try:
             min_date = pd.to_datetime(df_main_filtered['Date']).min()
             max_date = pd.to_datetime(df_main_filtered['Date']).max()
-            # st.sidebar.metric("📅 Período", f"{min_date.strftime('%d/%m/%Y')} a {max_date.strftime('%d/%m/%Y')}")
+           # st.sidebar.metric("📅 Período", f"{min_date.strftime('%d/%m/%Y')} a {max_date.strftime('%d/%m/%Y')}")
         except:
             pass
 
@@ -392,71 +376,6 @@ if st.sidebar.button("📁 Exportar TODOS os dados (ZIP)",
                     use_container_width=True,
                     help="Exporta todos os dados em um único arquivo ZIP"):
     export_all_data(df_main_filtered, df_top_voices)
-
-# =========================
-# Funções auxiliares
-# =========================
-def export_all_data(df_main_filtered, df_top_voices):
-    """
-    Exporta todos os dados do sistema (principal + top voices).
-    """
-    try:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        zip_filename = f"gft_dashboard_completo_{timestamp}.zip"
-        
-        # Criar arquivo temporário ZIP
-        with tempfile.TemporaryDirectory() as tmpdir:
-            zip_path = os.path.join(tmpdir, zip_filename)
-            
-            with zipfile.ZipFile(zip_path, 'w') as zipf:
-                # 1. Adicionar dados principais
-                if not df_main_filtered.empty:
-                    main_csv_path = os.path.join(tmpdir, 'dados_principais.csv')
-                    df_main_filtered.to_csv(main_csv_path, index=False, encoding='utf-8-sig')
-                    zipf.write(main_csv_path, 'dados_principais.csv')
-                
-                # 2. Adicionar dados Top Voices completos
-                if not df_top_voices.empty:
-                    tv_csv_path = os.path.join(tmpdir, 'top_voices_completo.csv')
-                    df_top_voices.to_csv(tv_csv_path, index=False, encoding='utf-8-sig')
-                    zipf.write(tv_csv_path, 'top_voices_completo.csv')
-                
-                # 3. Adicionar relatório resumido
-                summary_path = os.path.join(tmpdir, 'resumo.txt')
-                with open(summary_path, 'w', encoding='utf-8') as f:
-                    f.write(f"Relatório GFT Dashboard - {timestamp}\n")
-                    f.write("="*50 + "\n\n")
-                    f.write(f"Dados principais: {len(df_main_filtered)} registros\n")
-                    f.write(f"Top Voices: {len(df_top_voices)} registros\n")
-                    
-                    # Estatísticas principais
-                    if not df_main_filtered.empty:
-                        if 'Reach' in df_main_filtered.columns:
-                            total_reach = df_main_filtered['Reach'].sum()
-                            f.write(f"Alcance total principal: {int(total_reach):,}\n")
-                    
-                    if not df_top_voices.empty:
-                        if 'Reach' in df_top_voices.columns:
-                            total_reach_tv = df_top_voices['Reach'].sum()
-                            f.write(f"Alcance total Top Voices: {int(total_reach_tv):,}\n")
-                    
-                    f.write(f"\nGerado em: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n")
-                zipf.write(summary_path, 'resumo.txt')
-            
-            # Ler o arquivo ZIP para download
-            with open(zip_path, 'rb') as f:
-                st.sidebar.download_button(
-                    label="📥 Baixar ZIP completo",
-                    data=f,
-                    file_name=zip_filename,
-                    mime="application/zip",
-                    use_container_width=True
-                )
-        
-        st.sidebar.success(f"✅ ZIP '{zip_filename}' pronto para download!")
-        
-    except Exception as e:
-        st.sidebar.error(f"❌ Erro ao criar export global: {str(e)}")
 
 # =========================
 # Logout
